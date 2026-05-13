@@ -232,3 +232,82 @@ python task2/run_task2_pipeline.py \
   --wandb_project cv-midterm-pet
 ```
 
+---
+
+# Task 3: 从零搭建 U-Net 与损失函数工程
+
+## 已实现内容
+
+- `task3/models.py`：从零实现经典 U-Net（完整编码器/解码器 + Skip Connection）
+- `task3/data.py`：Oxford-IIIT Pet 像素级分割数据加载（使用 `annotations/trimaps`）
+- `task3/losses.py`：手写 Dice Loss + CE + 组合损失（CE + Dice）
+- `task3/train_unet.py`：单次训练脚本，指标为 `mIoU`，默认同步 wandb
+- `task3/run_loss_ablation.py`：一键跑三组损失对比实验
+- `task3/summarize_task3.py`：汇总对比三组实验结果
+
+## Task3-1/2 单次训练
+
+```bash
+python task3/train_unet.py \
+  --data_root . \
+  --output_dir outputs/task3/task3_unet_ce \
+  --loss_type ce \
+  --epochs 50 \
+  --batch_size 16 \
+  --image_size 256 \
+  --wandb_project cv-midterm-pet
+```
+
+`--loss_type` 可选：`ce`、`dice`、`ce_dice`
+
+## Task3-3 三种损失对比实验
+
+```bash
+python task3/run_loss_ablation.py \
+  --data_root . \
+  --output_root outputs/task3 \
+  --epochs 50 \
+  --batch_size 16 \
+  --image_size 256 \
+  --wandb_project cv-midterm-pet
+```
+
+## 汇总结果
+
+```bash
+python task3/summarize_task3.py --output_root outputs/task3
+```
+
+会生成：
+
+- `outputs/task3/summary.csv`
+- 各实验目录下 `final_metrics.json`（含 `best_val_miou`、`test_miou`）
+
+## 拉到云服务器训练（你当前流程）
+
+在云服务器项目目录执行：
+
+```bash
+cd ~/cv-midterm-pj
+git pull origin main
+source .venv/bin/activate
+```
+
+先确认 wandb 已登录：
+
+```bash
+wandb status
+```
+
+开始 Task3 正式训练（建议放进 tmux）：
+
+```bash
+python3 task3/run_loss_ablation.py \
+  --data_root . \
+  --output_root outputs/task3_cloud \
+  --epochs 50 \
+  --batch_size 16 \
+  --image_size 256 \
+  --wandb_project cv-midterm-pet
+```
+
