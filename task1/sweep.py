@@ -9,7 +9,7 @@ from pathlib import Path
 def parse_args():
     parser = argparse.ArgumentParser("Run experiment sweep for task-1")
     parser.add_argument("--data_root", type=str, default=".")
-    parser.add_argument("--output_root", type=str, default="outputs")
+    parser.add_argument("--output_root", type=str, default="task1/outputs/task1_full")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=4)
@@ -31,6 +31,8 @@ def run(cmd):
 
 def main():
     args = parse_args()
+    script_dir = Path(__file__).resolve().parent
+    train_script = script_dir / "train.py"
     output_root = Path(args.output_root)
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -46,7 +48,7 @@ def main():
         out_dir = output_root / "hyper" / tag
         cmd = [
             sys.executable,
-            "train.py",
+            str(train_script),
             "--data_root",
             args.data_root,
             "--output_dir",
@@ -82,7 +84,7 @@ def main():
             out_dir = output_root / "ablation" / tag
             cmd = [
                 sys.executable,
-                "train.py",
+                str(train_script),
                 "--data_root",
                 args.data_root,
                 "--output_dir",
@@ -119,7 +121,7 @@ def main():
                 out_dir = output_root / "attention" / tag
                 cmd = [
                     sys.executable,
-                    "train.py",
+                    str(train_script),
                     "--data_root",
                     args.data_root,
                     "--output_dir",

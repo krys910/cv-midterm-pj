@@ -2,6 +2,8 @@
 
 基于 `Oxford-IIIT Pet Dataset`，完成 ImageNet 预训练模型微调、超参数分析、预训练消融与注意力机制对比实验。
 
+Task1 代码统一放在：`task1/`
+
 ## 1. 环境安装
 
 ```bash
@@ -27,9 +29,9 @@ pip install -r requirements.txt
 以 `resnet18` 为例，使用 ImageNet 预训练参数初始化，重置输出层并设置分层学习率（backbone 更小）：
 
 ```bash
-python train.py \
+python task1/train.py \
   --data_root . \
-  --output_dir outputs/baseline_resnet18 \
+  --output_dir task1/outputs/baseline_resnet18 \
   --model resnet18 \
   --attention none \
   --init pretrained \
@@ -41,20 +43,20 @@ python train.py \
 
 训练产物：
 
-- `outputs/.../best.pt`：验证集最佳权重
-- `outputs/.../last.pt`：最后一个 epoch 权重
-- `outputs/.../history.csv`：训练/验证曲线数据
-- `outputs/.../metrics.json`：最终指标（best val acc、test acc 等）
-- `outputs/.../args.json`：实验参数记录
+- `task1/outputs/.../best.pt`：验证集最佳权重
+- `task1/outputs/.../last.pt`：最后一个 epoch 权重
+- `task1/outputs/.../history.csv`：训练/验证曲线数据
+- `task1/outputs/.../metrics.json`：最终指标（best val acc、test acc 等）
+- `task1/outputs/.../args.json`：实验参数记录
 
 ## 4. 超参数分析（Task 1-2）
 
 脚本会自动遍历不同模型与学习率组合：
 
 ```bash
-python sweep.py \
+python task1/sweep.py \
   --data_root . \
-  --output_root outputs \
+  --output_root task1/outputs/task1_full \
   --epochs 20 \
   --models resnet18,resnet34 \
   --base_lrs 1e-4,3e-4 \
@@ -68,16 +70,16 @@ python sweep.py \
 - `--init pretrained`
 - `--init scratch`
 
-可直接对比 `outputs/ablation/*/metrics.json` 的 `test_acc`。
+可直接对比 `task1/outputs/task1_full/ablation/*/metrics.json` 的 `test_acc`。
 
 ## 6. 引入注意力机制（Task 1-4）
 
 已实现 `SE` 与 `CBAM` 两种注意力模块，可在 ResNet backbone 的高层特征后插入：
 
 ```bash
-python train.py \
+python task1/train.py \
   --data_root . \
-  --output_dir outputs/attention_resnet18_se \
+  --output_dir task1/outputs/attention_resnet18_se \
   --model resnet18 \
   --attention se \
   --init pretrained \
@@ -89,7 +91,7 @@ python train.py \
 或使用批量脚本：
 
 ```bash
-python sweep.py --data_root . --output_root outputs --with_attention
+python task1/sweep.py --data_root . --output_root task1/outputs/task1_full --with_attention
 ```
 
 ## 7. 可视化（wandb，可选）
@@ -99,7 +101,7 @@ python sweep.py --data_root . --output_root outputs --with_attention
 显式指定启用方式（可选）：
 
 ```bash
-python train.py ... --use_wandb --wandb_project cv-midterm-pet
+python task1/train.py ... --use_wandb --wandb_project cv-midterm-pet
 ```
 
 建议在报告中展示：
@@ -111,7 +113,7 @@ python train.py ... --use_wandb --wandb_project cv-midterm-pet
 如果已经训练完成、但当时没开 wandb，可把已有结果批量补录（无需重训）：
 
 ```bash
-python log_to_wandb.py --output_root outputs/task1_full --project cv-midterm-pet
+python task1/log_to_wandb.py --output_root task1/outputs/task1_full --project cv-midterm-pet
 ```
 
 若还未登录 wandb，先执行：

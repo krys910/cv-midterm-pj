@@ -7,8 +7,8 @@ import pandas as pd
 
 def parse_args():
     parser = argparse.ArgumentParser("Summarize Task-1 experiment outputs")
-    parser.add_argument("--output_root", type=str, default="outputs/task1_full")
-    parser.add_argument("--save_csv", type=str, default="outputs/task1_full/summary.csv")
+    parser.add_argument("--output_root", type=str, default="task1/outputs/task1_full")
+    parser.add_argument("--save_csv", type=str, default="task1/outputs/task1_full/summary.csv")
     return parser.parse_args()
 
 

@@ -25,6 +25,8 @@ datasets/
 outputs/
 runs/
 wandb/
+task1/outputs/
+results_for_report.md
 
 # macOS or IDE
 .idea/

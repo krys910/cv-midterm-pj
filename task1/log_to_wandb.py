@@ -7,7 +7,7 @@ import pandas as pd
 
 def parse_args():
     parser = argparse.ArgumentParser("Upload finished runs to Weights & Biases")
-    parser.add_argument("--output_root", type=str, default="outputs/task1_full")
+    parser.add_argument("--output_root", type=str, default="task1/outputs/task1_full")
     parser.add_argument("--project", type=str, default="cv-midterm-pet")
     parser.add_argument("--entity", type=str, default="")
     parser.add_argument("--offline", action="store_true")
