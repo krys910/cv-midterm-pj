@@ -1,7 +1,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import cv2
 import numpy as np
@@ -16,6 +16,19 @@ def parse_args():
     parser.add_argument("--start_frame", type=int, default=-1, help="If -1, auto-pick from detected events.")
     parser.add_argument("--num_frames", type=int, default=4)
     parser.add_argument("--iou_thresh", type=float, default=0.5)
+    parser.add_argument(
+        "--pick_mode",
+        type=str,
+        default="crowded",
+        choices=["first", "best_iou", "crowded"],
+        help="How to auto pick event window when start_frame is -1.",
+    )
+    parser.add_argument(
+        "--crowd_dist_thresh",
+        type=float,
+        default=120.0,
+        help="Center distance threshold (pixels) for crowd score.",
+    )
     parser.add_argument("--wandb_project", type=str, default="cv-midterm-pet")
     parser.add_argument("--wandb_entity", type=str, default="")
     parser.add_argument("--wandb_run_name", type=str, default="task2_id_switch_analysis")
@@ -74,20 +87,73 @@ def find_switch_events(df: pd.DataFrame, iou_thresh: float) -> List[Dict]:
     return events
 
 
-def draw_frame(frame: np.ndarray, frame_df: pd.DataFrame) -> np.ndarray:
+def frame_crowd_score(frame_df: pd.DataFrame, crowd_dist_thresh: float) -> float:
+    if len(frame_df) <= 1:
+        return 0.0
+    boxes = frame_df[["x1", "y1", "x2", "y2"]].to_numpy(dtype=float)
+    centers = frame_df[["cx", "cy"]].to_numpy(dtype=float)
+    max_iou = 0.0
+    close_pairs = 0
+    n = len(frame_df)
+    for i in range(n):
+        for j in range(i + 1, n):
+            max_iou = max(max_iou, iou_xyxy(boxes[i], boxes[j]))
+            if np.linalg.norm(centers[i] - centers[j]) <= crowd_dist_thresh:
+                close_pairs += 1
+    # Weighted sum: overlapping boxes + nearby targets + frame target density.
+    return float(max_iou + 0.05 * close_pairs + 0.01 * n)
+
+
+def pick_start_frame(
+    df: pd.DataFrame,
+    events: List[Dict],
+    mode: str,
+    crowd_dist_thresh: float,
+) -> Tuple[int, Optional[Dict], float]:
+    if not events:
+        return int(df["frame"].min()), None, 0.0
+    if mode == "first":
+        return int(events[0]["frame"]), events[0], float(events[0]["iou"])
+    if mode == "best_iou":
+        best = max(events, key=lambda e: float(e["iou"]))
+        return int(best["frame"]), best, float(best["iou"])
+
+    # crowded: prefer switches in crowded/occluded scenes.
+    best_event = None
+    best_score = -1.0
+    for e in events:
+        f = int(e["frame"])
+        frame_df = df[df["frame"] == f]
+        cscore = frame_crowd_score(frame_df, crowd_dist_thresh=crowd_dist_thresh)
+        score = float(e["iou"]) + cscore
+        if score > best_score:
+            best_score = score
+            best_event = e
+    assert best_event is not None
+    return int(best_event["frame"]), best_event, float(best_score)
+
+
+def draw_frame(
+    frame: np.ndarray,
+    frame_df: pd.DataFrame,
+    highlight_ids: Optional[Set[int]] = None,
+) -> np.ndarray:
     out = frame.copy()
+    highlight_ids = highlight_ids or set()
     for _, r in frame_df.iterrows():
         x1, y1, x2, y2 = int(r["x1"]), int(r["y1"]), int(r["x2"]), int(r["y2"])
         tid = int(r["track_id"])
         cls_name = str(r["class_name"])
-        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        is_focus = tid in highlight_ids
+        color = (0, 0, 255) if is_focus else (0, 255, 0)
+        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
         cv2.putText(
             out,
-            f"ID{tid} {cls_name}",
+            f"ID{tid} {cls_name}" + (" *switch*" if is_focus else ""),
             (x1, max(20, y1 - 4)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.55,
-            (0, 255, 0),
+            color,
             2,
         )
     return out
@@ -106,12 +172,27 @@ def main():
 
     if args.start_frame >= 0:
         start_frame = args.start_frame
+        selected_event = None
+        selection_score = None
     elif events:
-        start_frame = int(events[0]["frame"])
+        start_frame, selected_event, selection_score = pick_start_frame(
+            df=df,
+            events=events,
+            mode=args.pick_mode,
+            crowd_dist_thresh=args.crowd_dist_thresh,
+        )
     else:
         start_frame = int(df["frame"].min())
+        selected_event = None
+        selection_score = None
 
     end_frame = start_frame + args.num_frames - 1
+    window_events = [e for e in events if start_frame <= e["frame"] <= end_frame]
+    highlight_by_frame: Dict[int, Set[int]] = {}
+    for e in window_events:
+        f = int(e["frame"])
+        highlight_by_frame.setdefault(f, set()).add(int(e["old_id"]))
+        highlight_by_frame.setdefault(f + 1, set()).add(int(e["new_id"]))
 
     cap = cv2.VideoCapture(args.source_video)
     if not cap.isOpened():
@@ -124,20 +205,22 @@ def main():
         if not ok:
             continue
         frame_df = df[df["frame"] == fidx]
-        vis = draw_frame(frame, frame_df)
+        vis = draw_frame(frame, frame_df, highlight_ids=highlight_by_frame.get(fidx, set()))
         save_path = out_dir / f"frame_{fidx:06d}.jpg"
         cv2.imwrite(str(save_path), vis)
         saved_images.append(str(save_path.resolve()))
     cap.release()
 
-    window_events = [e for e in events if start_frame <= e["frame"] <= end_frame]
     report = {
         "start_frame": start_frame,
         "end_frame": end_frame,
         "num_saved_frames": len(saved_images),
+        "auto_pick_mode": args.pick_mode if args.start_frame < 0 else "manual",
+        "selected_event": selected_event,
+        "selection_score": selection_score,
         "events_in_window": window_events,
         "all_detected_switch_events": events,
-        "note": "事件由相邻帧同类目标高 IoU 但 Track ID 改变近似得到，用于课程作业分析。",
+        "note": "事件由相邻帧同类目标高 IoU 但 Track ID 改变近似得到；默认优先挑更拥挤场景，便于遮挡/交汇分析。",
     }
     report_path = out_dir / "id_switch_report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

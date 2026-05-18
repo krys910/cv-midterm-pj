@@ -1,10 +1,38 @@
-# 计算机视觉期中 Project - Task 1
+# 计算机视觉期中项目（Task1-3）
 
-基于 `Oxford-IIIT Pet Dataset`，完成 ImageNet 预训练模型微调、超参数分析、预训练消融与注意力机制对比实验。
+本仓库包含课程期中项目三个任务的完整代码、训练流程与结果汇总脚本：
 
-Task1 代码统一放在：`task1/`
+- `task1/`：ImageNet 预训练微调分类（Oxford-IIIT Pet）
+- `task2/`：VisDrone 目标检测 + 视频多目标跟踪 + 越线计数
+- `task3/`：从零实现 U-Net + 分割损失函数对比（CE / Dice / CE+Dice）
 
-## 1. 环境安装
+---
+
+## 1. 仓库结构
+
+```text
+.
+├── task1/
+│   ├── train.py
+│   ├── sweep.py
+│   ├── summarize_results.py
+│   └── src/
+├── task2/
+│   ├── prepare_visdrone.py
+│   ├── train_visdrone.py
+│   ├── track_and_count.py
+│   └── analyze_id_switch.py
+├── task3/
+│   ├── train_unet.py
+│   ├── run_loss_ablation.py
+│   └── summarize_task3.py
+├── outputs/                 # 训练输出（默认忽略，不提交）
+└── generate_report_results.py
+```
+
+---
+
+## 2. 环境配置
 
 ```bash
 python -m venv .venv
@@ -12,143 +40,28 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 2. 数据准备
+可选（仅 Task1 独立环境）：
 
-当前目录放置以下文件即可（你已下载完成）：
+```bash
+pip install -r task1/requirements.txt
+```
+
+---
+
+## 3. 数据准备
+
+### Task1 / Task3（Oxford-IIIT Pet）
+
+项目根目录放置：
 
 - `images.tar.gz`
 - `annotations.tar.gz`
 
-第一次运行训练时会自动解压为：
+首次训练会自动解压到 `images/` 与 `annotations/`。
 
-- `images/`
-- `annotations/`
+### Task2（VisDrone）
 
-## 3. Baseline 微调（Task 1-1）
-
-以 `resnet18` 为例，使用 ImageNet 预训练参数初始化，重置输出层并设置分层学习率（backbone 更小）：
-
-```bash
-python task1/train.py \
-  --data_root . \
-  --output_dir task1/outputs/baseline_resnet18 \
-  --model resnet18 \
-  --attention none \
-  --init pretrained \
-  --epochs 20 \
-  --batch_size 32 \
-  --base_lr 1e-4 \
-  --head_lr 1e-3
-```
-
-训练产物：
-
-- `task1/outputs/.../best.pt`：验证集最佳权重
-- `task1/outputs/.../last.pt`：最后一个 epoch 权重
-- `task1/outputs/.../history.csv`：训练/验证曲线数据
-- `task1/outputs/.../metrics.json`：最终指标（best val acc、test acc 等）
-- `task1/outputs/.../args.json`：实验参数记录
-
-## 4. 超参数分析（Task 1-2）
-
-脚本会自动遍历不同模型与学习率组合：
-
-```bash
-python task1/sweep.py \
-  --data_root . \
-  --output_root task1/outputs/task1_full \
-  --epochs 20 \
-  --models resnet18,resnet34 \
-  --base_lrs 1e-4,3e-4 \
-  --head_lrs 1e-3,3e-3
-```
-
-## 5. 预训练消融（Task 1-3）
-
-在 `sweep.py` 中自动包含：
-
-- `--init pretrained`
-- `--init scratch`
-
-可直接对比 `task1/outputs/task1_full/ablation/*/metrics.json` 的 `test_acc`。
-
-## 6. 引入注意力机制（Task 1-4）
-
-已实现 `SE` 与 `CBAM` 两种注意力模块，可在 ResNet backbone 的高层特征后插入：
-
-```bash
-python task1/train.py \
-  --data_root . \
-  --output_dir task1/outputs/attention_resnet18_se \
-  --model resnet18 \
-  --attention se \
-  --init pretrained \
-  --epochs 20 \
-  --base_lr 1e-4 \
-  --head_lr 1e-3
-```
-
-或使用批量脚本：
-
-```bash
-python task1/sweep.py --data_root . --output_root task1/outputs/task1_full --with_attention
-```
-
-## 7. 可视化（wandb，可选）
-
-默认会启用 wandb（已登录情况下会自动同步）。若你想临时关闭，使用 `--no_wandb`。
-
-显式指定启用方式（可选）：
-
-```bash
-python task1/train.py ... --use_wandb --wandb_project cv-midterm-pet
-```
-
-建议在报告中展示：
-
-- train/val loss 曲线
-- val accuracy 曲线
-- 不同实验设置的最终 test accuracy 对比
-
-如果已经训练完成、但当时没开 wandb，可把已有结果批量补录（无需重训）：
-
-```bash
-python task1/log_to_wandb.py --output_root task1/outputs/task1_full --project cv-midterm-pet
-```
-
-若还未登录 wandb，先执行：
-
-```bash
-wandb login
-```
-
-## 8. 报告建议结构（对应作业要求）
-
-- 模型与数据集简介
-- 实验设置：划分、网络结构、优化器、batch size、learning rate、epoch、loss、评估指标
-- 结果对比：
-  - Baseline
-  - 超参数分析
-  - 预训练消融（pretrained vs scratch）
-  - 注意力模块（none vs SE vs CBAM）
-- 结论与分析
-- Github 仓库链接 + 模型权重下载链接
-
----
-
-# Task 2: 场景目标检测与视频多目标跟踪
-
-新增脚本目录：`task2/`
-
-- `prepare_visdrone.py`：将 VisDrone DET 标注转为 YOLO 格式并生成 `visdrone.yaml`
-- `train_visdrone.py`：YOLOv8 微调训练（默认同步 wandb）
-- `track_and_count.py`：视频逐帧检测+跟踪（稳定 ID）并做越线计数
-- `analyze_id_switch.py`：提取连续 3-4 帧，分析遮挡/ID 跳变
-- `run_task2_pipeline.py`：一键串联以上流程
-
-## Task2-1 数据预处理 + 微调训练（同步 wandb）
-
-1) 准备数据（示例目录）
+准备如下目录（示例）：
 
 ```text
 VisDrone2019-DET/
@@ -160,7 +73,46 @@ VisDrone2019-DET/
     └── annotations/
 ```
 
-2) 转换标注
+---
+
+## 4. Task1：分类微调（Baseline / Ablation / Attention）
+
+### 4.1 单次训练
+
+```bash
+python task1/train.py \
+  --data_root . \
+  --output_dir outputs/task1_cloud_v2/baseline/resnet18_blr3e4_hlr3e3_s42 \
+  --model resnet18 \
+  --attention none \
+  --init pretrained \
+  --epochs 40 \
+  --batch_size 32 \
+  --base_lr 3e-4 \
+  --head_lr 3e-3 \
+  --weight_decay 5e-5 \
+  --label_smoothing 0.05 \
+  --dropout 0.1 \
+  --seed 42
+```
+
+### 4.2 批量实验
+
+```bash
+python task1/sweep.py --data_root . --output_root task1/outputs/task1_full --with_attention
+```
+
+### 4.3 汇总结果
+
+```bash
+python task1/summarize_results.py --output_root outputs/task1_cloud_v2 --save_csv outputs/task1_cloud_v2/summary.csv
+```
+
+---
+
+## 5. Task2：检测、跟踪与越线计数
+
+### 5.1 标注转换（VisDrone -> YOLO）
 
 ```bash
 python task2/prepare_visdrone.py \
@@ -168,7 +120,7 @@ python task2/prepare_visdrone.py \
   --output_root datasets/visdrone_yolo
 ```
 
-3) 训练（默认 wandb 开启）
+### 5.2 检测训练（YOLOv8）
 
 ```bash
 python task2/train_visdrone.py \
@@ -177,139 +129,95 @@ python task2/train_visdrone.py \
   --epochs 80 \
   --imgsz 960 \
   --batch 16 \
-  --device mps \
-  --project outputs/task2 \
+  --device 0 \
+  --project outputs/task2_cloud \
   --name visdrone_yolov8n \
   --wandb_project cv-midterm-pet
 ```
 
-若需要关闭 wandb：在命令后加 `--no_wandb`。
-
-## Task2-2 视频流检测与多目标跟踪 + Task2-4 越线计数
+### 5.3 跟踪 + 越线计数
 
 ```bash
 python task2/track_and_count.py \
-  --model outputs/task2/visdrone_yolov8n/weights/best.pt \
-  --source /path/to/your_test_video.mp4 \
-  --output_dir outputs/task2/tracking \
-  --tracker bytetrack.yaml \
-  --wandb_project cv-midterm-pet
+  --model outputs/task2_cloud/visdrone_yolov8n/weights/best.pt \
+  --source test_video.mp4 \
+  --output_dir outputs/task2_cloud/tracking \
+  --tracker bytetrack.yaml
 ```
 
-可选指定虚拟计数线（`x1,y1,x2,y2`）：
-
-```bash
---line 100,300,1200,300
-```
-
-输出：
-- `outputs/task2/tracking/*_tracked.mp4`（带框、类别、Tracking ID、越线计数）
-- `outputs/task2/tracking/tracks.csv`（逐帧跟踪结果）
-- `outputs/task2/tracking/tracking_summary.json`
-
-## Task2-3 遮挡与 ID 跳变分析
+### 5.4 遮挡/ID跳变分析（自动选片段）
 
 ```bash
 python task2/analyze_id_switch.py \
-  --track_csv outputs/task2/tracking/tracks.csv \
-  --source_video /path/to/your_test_video.mp4 \
-  --output_dir outputs/task2/id_analysis \
+  --track_csv outputs/task2_cloud/tracking/tracks.csv \
+  --source_video test_video.mp4 \
+  --output_dir outputs/task2_cloud/id_analysis_final \
   --num_frames 4 \
-  --wandb_project cv-midterm-pet
-```
-
-输出：
-- `outputs/task2/id_analysis/frame_*.jpg`（连续帧可视化）
-- `outputs/task2/id_analysis/id_switch_report.json`（可能的 ID 跳变事件）
-
-## 一键跑完整 Task2
-
-```bash
-python task2/run_task2_pipeline.py \
-  --visdrone_root /path/to/VisDrone2019-DET \
-  --test_video /path/to/your_test_video.mp4 \
-  --workspace outputs/task2 \
-  --epochs 80 \
-  --device mps \
-  --wandb_project cv-midterm-pet
+  --pick_mode crowded
 ```
 
 ---
 
-# Task 3: 从零搭建 U-Net 与损失函数工程
+## 6. Task3：U-Net 与损失函数对比
 
-## 已实现内容
-
-- `task3/models.py`：从零实现经典 U-Net（完整编码器/解码器 + Skip Connection）
-- `task3/data.py`：Oxford-IIIT Pet 像素级分割数据加载（使用 `annotations/trimaps`）
-- `task3/losses.py`：手写 Dice Loss + CE + 组合损失（CE + Dice）
-- `task3/train_unet.py`：单次训练脚本，指标为 `mIoU`，默认同步 wandb
-- `task3/run_loss_ablation.py`：一键跑三组损失对比实验
-- `task3/summarize_task3.py`：汇总对比三组实验结果
-
-## Task3-1/2 单次训练
+### 6.1 单次训练
 
 ```bash
 python task3/train_unet.py \
   --data_root . \
-  --output_dir outputs/task3/task3_unet_ce \
+  --output_dir outputs/task3_cloud/task3_unet_ce \
   --loss_type ce \
   --epochs 50 \
   --batch_size 16 \
-  --image_size 256 \
-  --wandb_project cv-midterm-pet
+  --image_size 256
 ```
 
 `--loss_type` 可选：`ce`、`dice`、`ce_dice`
 
-## Task3-3 三种损失对比实验
+### 6.2 三种损失一键对比
 
 ```bash
 python task3/run_loss_ablation.py \
   --data_root . \
-  --output_root outputs/task3 \
-  --epochs 50 \
-  --batch_size 16 \
-  --image_size 256 \
-  --wandb_project cv-midterm-pet
-```
-
-## 汇总结果
-
-```bash
-python task3/summarize_task3.py --output_root outputs/task3
-```
-
-会生成：
-
-- `outputs/task3/summary.csv`
-- 各实验目录下 `final_metrics.json`（含 `best_val_miou`、`test_miou`）
-
-## 拉到云服务器训练（你当前流程）
-
-在云服务器项目目录执行：
-
-```bash
-cd ~/cv-midterm-pj
-git pull origin main
-source .venv/bin/activate
-```
-
-先确认 wandb 已登录：
-
-```bash
-wandb status
-```
-
-开始 Task3 正式训练（建议放进 tmux）：
-
-```bash
-python3 task3/run_loss_ablation.py \
-  --data_root . \
   --output_root outputs/task3_cloud \
   --epochs 50 \
   --batch_size 16 \
-  --image_size 256 \
-  --wandb_project cv-midterm-pet
+  --image_size 256
 ```
+
+### 6.3 汇总结果
+
+```bash
+python task3/summarize_task3.py --output_root outputs/task3_cloud
+```
+
+---
+
+## 7. 报告结果自动汇总
+
+将 Task1-3 结果汇总为可直接用于报告的 Markdown：
+
+```bash
+python generate_report_results.py --project_root . --output_md results_for_report.md
+```
+
+---
+
+## 8. 结果产物说明
+
+常见输出文件：
+
+- `best.pt`：验证集最佳权重
+- `last.pt`：最后 epoch 权重
+- `history.csv/json`：训练曲线数据
+- `metrics.json` / `final_metrics.json`：最终指标
+- `tracking_summary.json`：越线计数与跟踪统计
+
+---
+
+## 9. 代码与模型链接（提交前请替换）
+
+- Github Repo: <https://github.com/krys910/cv-midterm-pj>
+- 模型权重（Google Drive）: `<替换为你的共享链接>`
+- wandb 项目: `<替换为你的 wandb 项目链接>`
 
